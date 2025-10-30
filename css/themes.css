@@ -1,0 +1,177 @@
+/* =========================
+   themes.css
+   الثيمات + الألوان
+   ========================= */
+
+/*
+كل ثيم عبارة عن class على body مثل: .theme-ocean
+كل ثيم يغيّر متغيرات الألوان فقط.
+*/
+
+body.theme-ocean {
+  --bg-main: #0e1a2b;
+  --bg-card: #18263b;
+  --bg-header: #111b2d;
+  --bg-side: #111b2d;
+  --text-main: #ffffff;
+  --text-dim: #9fa8c3;
+  --accent: #3fa9f5;
+  --danger: #ff4d4d;
+  --success: #4caf50;
+  --neutral: #999999;
+}
+
+body.theme-glow {
+  --bg-main: #0b0b13;
+  --bg-card: #1a1a2e;
+  --bg-header: #0f0f1f;
+  --bg-side: #0f0f1f;
+  --text-main: #ffffff;
+  --text-dim: #bdbdff;
+  --accent: #8a7bff;
+  --danger: #ff4d88;
+  --success: #4ce1a1;
+  --neutral: #8884a8;
+}
+
+body.theme-mint {
+  --bg-main: #0f1f1c;
+  --bg-card: #1d2f2a;
+  --bg-header: #142520;
+  --bg-side: #142520;
+  --text-main: #eafff6;
+  --text-dim: #9dc7b7;
+  --accent: #4df9ba;
+  --danger: #ff6b6b;
+  --success: #4ade80;
+  --neutral: #7a8f86;
+}
+
+body.theme-rose {
+  --bg-main: #2b0f18;
+  --bg-card: #401828;
+  --bg-header: #2d121d;
+  --bg-side: #2d121d;
+  --text-main: #ffeaf2;
+  --text-dim: #ffafc9;
+  --accent: #ff6fa5;
+  --danger: #ff4460;
+  --success: #8df5c1;
+  --neutral: #b67c90;
+}
+
+body.theme-down {
+  --bg-main: #1a1d2b;
+  --bg-card: #23273d;
+  --bg-header: #1a1d2b;
+  --bg-side: #1a1d2b;
+  --text-main: #ffffff;
+  --text-dim: #9fa6d2;
+  --accent: #6d7dff;
+  --danger: #ff5f6d;
+  --success: #6dffa2;
+  --neutral: #9094a8;
+}
+
+body.theme-upper {
+  --bg-main: #1b1b1b;
+  --bg-card: #2a2a2a;
+  --bg-header: #1f1f1f;
+  --bg-side: #1f1f1f;
+  --text-main: #ffffff;
+  --text-dim: #a6a6a6;
+  --accent: #ffce54;
+  --danger: #ff5f5f;
+  --success: #4dd784;
+  --neutral: #8a8a8a;
+}
+
+body.theme-dark-mood {
+  --bg-main: #000000;
+  --bg-card: #1a1a1a;
+  --bg-header: #0d0d0d;
+  --bg-side: #0d0d0d;
+  --text-main: #ffffff;
+  --text-dim: #888888;
+  --accent: #42a5f5;
+  --danger: #ef5350;
+  --success: #66bb6a;
+  --neutral: #666666;
+}
+
+body.theme-light-blue {
+  --bg-main: #0f1a2f;
+  --bg-card: #1c2e4a;
+  --bg-header: #14233a;
+  --bg-side: #14233a;
+  --text-main: #dbe9ff;
+  --text-dim: #94a9d6;
+  --accent: #4b8cff;
+  --danger: #ff5f7a;
+  --success: #5ce0a3;
+  --neutral: #8a93b3;
+}
+
+body.theme-dark-blue {
+  --bg-main: #0a0f1d;
+  --bg-card: #141c2f;
+  --bg-header: #0f1525;
+  --bg-side: #0f1525;
+  --text-main: #ffffff;
+  --text-dim: #8ca0d6;
+  --accent: #4f6bff;
+  --danger: #ff4d5a;
+  --success: #46d18a;
+  --neutral: #6b6f88;
+}
+
+body.theme-tirkwaz {
+  --bg-main: #071c1c;
+  --bg-card: #102d2d;
+  --bg-header: #0c2424;
+  --bg-side: #0c2424;
+  --text-main: #cfffff;
+  --text-dim: #7bb5b5;
+  --accent: #27f3f3;
+  --danger: #ff6b81;
+  --success: #63f5b1;
+  --neutral: #6a8f8f;
+}
+
+body.theme-gradient {
+  --bg-main: radial-gradient(circle at 20% 20%, #1f2a45 0%, #0a0f1d 80%);
+  --bg-card: rgba(20, 28, 47, 0.6);
+  --bg-header: rgba(10, 15, 29, 0.8);
+  --bg-side: rgba(10, 15, 29, 0.8);
+  --text-main: #ffffff;
+  --text-dim: #9fa8c3;
+  --accent: #7a5cff;
+  --danger: #ff4d79;
+  --success: #4ce1a1;
+  --neutral: #8a8a9f;
+}
+
+/* ملاحظة: الثيم gradient يستعمل قيم شفافة. */
+body.theme-gradient .card,
+body.theme-gradient .side-link,
+body.theme-gradient .auth-card,
+body.theme-gradient .bill-alert-modal,
+body.theme-gradient .modal .modal-box {
+  background-color: rgba(20, 28, 47, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* عشان body.theme-gradient عنده خلفية gradient بدل لون ثابت */
+body.theme-gradient {
+  background-color: #0a0f1d; /* fallback */
+  color: var(--text-main);
+  background-image: radial-gradient(circle at 20% 20%, #1f2a45 0%, #0a0f1d 80%);
+  background-attachment: fixed;
+}
+
+/* ضبط الألوان الخاصة بالعناصر حسب الثيم (عام) */
+.primary-btn {
+  background-color: var(--accent);
+  color: #0d0d0d;
+}
