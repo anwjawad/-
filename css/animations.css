@@ -1,0 +1,119 @@
+/* =========================
+   animations.css
+   الحركات والانتقالات
+   ========================= */
+
+/* سرعة ونوع الحركة قابلة للتعديل من الـpreferences
+   لكن هون في ديفولت, والـJS رح يغير القيم */
+:root {
+  --anim-speed-fast: 0.15s;
+  --anim-speed: 0.3s;
+  --anim-speed-slow: 0.6s;
+  --anim-curve: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* حركات الظهور والاختفاء */
+.fade-in {
+  animation: fade-in var(--anim-speed) var(--anim-curve) both;
+}
+
+@keyframes fade-in {
+  0% {opacity:0}
+  100% {opacity:1}
+}
+
+.fade-out {
+  animation: fade-out var(--anim-speed) var(--anim-curve) both;
+}
+
+@keyframes fade-out {
+  0% {opacity:1}
+  100% {opacity:0}
+}
+
+/* pop-in (للمودالات والتنبيهات) */
+.pop-in {
+  animation: pop-in var(--anim-speed) var(--anim-curve) both;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity:0;
+    transform: scale(0.8) translateY(10px);
+  }
+  100% {
+    opacity:1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* slide-in-right (للقائمة الجانبية على الموبايل مثلاً) */
+.slide-in-right {
+  animation: slide-in-right var(--anim-speed) var(--anim-curve) both;
+}
+
+@keyframes slide-in-right {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* slide-out-right (لإخفاء القائمة الجانبية) */
+.slide-out-right {
+  animation: slide-out-right var(--anim-speed) var(--anim-curve) both;
+}
+
+@keyframes slide-out-right {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* glow-pulse (للأزرار المهمة مثل + / - ) */
+.glow-pulse {
+  position: relative;
+}
+.glow-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.4) 0%, rgba(0,0,0,0) 70%);
+  filter: blur(12px);
+  opacity: 0.4;
+  animation: glow-pulse-anim 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes glow-pulse-anim {
+  0% {opacity:0.3; transform: scale(0.9);}
+  50% {opacity:0.6; transform: scale(1);}
+  100% {opacity:0.3; transform: scale(0.9);}
+}
+
+/* overlay تبع الفواتير الحرجة */
+.bill-alert-overlay:not(.hidden) .bill-alert-modal {
+  animation: pop-in var(--anim-speed) var(--anim-curve) both;
+}
+
+/* لإظهار/إخفاء المودال */
+.modal:not(.hidden) {
+  display: flex;
+  animation: fade-in var(--anim-speed) var(--anim-curve) both;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+/* auth-screen دخول تدريجي */
+.auth-screen.visible .auth-card {
+  animation: pop-in var(--anim-speed) var(--anim-curve) both;
+}
