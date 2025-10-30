@@ -42,7 +42,7 @@ const AppState = {
 
   // إعدادات الاتصال مع GAS (راح نستخدمها لاحقاً في gas-api.js)
   dataConfig: {
-    gasBaseUrl: "", 
+    gasBaseUrl: "https://script.google.com/macros/s/AKfycbyuCP-kFSAaF05bVZ55rMpXgLc4yjBbadgc9chymfiiycYyYpQopzh4VX55AnSyYGjokA/exec", 
     // ملاحظة:
     // هون المطور رح يحط عنوان السكربت (الـ Web App URL) تبع GAS
     // حتى يضل موجود كـ default بداخل الكود زي ما طلبت
