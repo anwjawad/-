@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>إدارة المصاريف</title>
+
+  <!-- الخط العام -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- ملفات التنسيق -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+<body class="app theme-ocean">
+
+  <!-- شاشة القفل / اختيار المستخدم -->
+  <div id="auth-screen" class="auth-screen visible">
+    <div class="auth-card card elevate fade-in">
+      <h1 class="auth-title">أهلاً 👋</h1>
+
+      <label class="auth-label">اختر المستخدم</label>
+      <select id="auth-user" class="auth-input">
+        <option value="me">حسابي (كامل)</option>
+        <option value="partner">حساب زوجتي (قائمة المشتريات)</option>
+      </select>
+
+      <label class="auth-label">أدخل الـ PIN</label>
+      <input
+        id="auth-pin"
+        class="auth-input"
+        type="password"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="••••"
+      />
+
+      <button id="auth-submit" class="btn primary-btn glow-pulse">
+        دخول
+      </button>
+
+      <div id="auth-error" class="auth-error"></div>
+    </div>
+  </div>
+
+  <!-- طبقة تنبيه الفواتير الحرجة (تغطي الشاشة وتعمل blur للخلفية) -->
+  <div id="bill-alert-overlay" class="bill-alert-overlay hidden">
+    <div class="bill-alert-modal card elevate pop-in">
+      <h2 class="bill-alert-title">⚠ فاتورة مستحقة قريباً</h2>
+      <div class="bill-alert-body">
+        <div class="bill-alert-name" id="bill-alert-name"></div>
+        <div class="bill-alert-amount">
+          <span>المبلغ:</span>
+          <span id="bill-alert-amount"></span>
+        </div>
+        <div class="bill-alert-due">
+          <span>تاريخ الاستحقاق:</span>
+          <span id="bill-alert-due"></span>
+        </div>
+        <div class="bill-alert-status">
+          <span>الحالة الحالية:</span>
+          <span id="bill-alert-status"></span>
+        </div>
+      </div>
+
+      <div class="bill-alert-actions">
+        <button class="btn success-btn" id="bill-alert-paid">تم الدفع</button>
+        <button class="btn danger-btn" id="bill-alert-notpaid">لم يتم الدفع</button>
+        <button class="btn neutral-btn" id="bill-alert-remind">ذكّرني غداً</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- رأس التطبيق / القائمة الجانبية المصغّرة للموبايل -->
+  <header class="app-header">
+    <button id="menu-toggle" class="icon-btn">
+      <span class="icon-lines"></span>
+    </button>
+    <div class="app-header-info">
+      <div class="app-current-user" id="app-current-user">---</div>
+      <div class="app-current-theme" id="app-current-theme">ثيم: ocean</div>
+    </div>
+  </header>
+
+  <!-- القائمة الجانبية الرئيسية -->
+  <aside id="side-menu" class="side-menu slide-in-right">
+    <div class="side-menu-inner">
+      <div class="side-menu-section-title">القوائم</div>
+
+      <button class="side-link" data-screen="dashboard-screen">
+        <span class="icon icon-dashboard"></span>
+        <span>الواجهة الرئيسية</span>
+      </button>
+
+      <button class="side-link" data-screen="transactions-screen">
+        <span class="icon icon-plusminus"></span>
+        <span>دخل / مصروف</span>
+      </button>
+
+      <button class="side-link" data-screen="bills-screen">
+        <span class="icon icon-bill"></span>
+        <span>فواتير شهرية</span>
+      </button>
+
+      <button class="side-link" data-screen="goals-screen">
+        <span class="icon icon-goal"></span>
+        <span>أهداف وميزانية سنوية</span>
+      </button>
+
+      <button class="side-link" data-screen="shopping-screen">
+        <span class="icon icon-cart"></span>
+        <span>المشتريات</span>
+      </button>
+
+      <button class="side-link" data-screen="preferences-screen">
+        <span class="icon icon-gear"></span>
+        <span>الإعدادات</span>
+      </button>
+
+      <div class="side-menu-section-title">أخرى</div>
+
+      <button class="side-link" id="logout-btn">
+        <span class="icon icon-lock"></span>
+        <span>قفل التطبيق</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- المحتوى الرئيسي -->
+  <main id="main-content" class="main-content">
+
+    <!-- شاشة: الرئيسية / الداشبورد -->
+    <section id="dashboard-screen" class="screen visible">
+      <div class="screen-header">
+        <h2 class="screen-title">نظرة سريعة</h2>
+      </div>
+
+      <div class="cards-grid">
+        <!-- بطاقة الرسم البياني -->
+        <div class="card elevate">
+          <div class="card-header-row">
+            <div class="card-title">التوزيع</div>
+            <div class="card-actions">
+              <select id="chart-mode" class="card-select">
+                <option value="all">الكل (دخل + مصروف)</option>
+                <option value="expense">مصروف فقط</option>
+                <option value="income">دخل فقط</option>
+              </select>
+              <select id="chart-value-mode" class="card-select">
+                <option value="percent">%</option>
+                <option value="amount">شيكل</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body chart-wrapper">
+            <canvas id="main-pie-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- بطاقة الملخص -->
+        <div class="card elevate">
+          <div class="card-header-row">
+            <div class="card-title">ملخص سريع</div>
+          </div>
+          <div class="summary-lines" id="summary-lines">
+            <!-- إجمالي الدخل / إجمالي المصروف / المتبقي بالميزانية لكل فئة -->
+          </div>
+        </div>
+
+        <!-- بطاقة الفئات المقيّدة بميزانية -->
+        <div class="card elevate">
+          <div class="card-header-row">
+            <div class="card-title">حالة الفئات</div>
+          </div>
+          <div class="budget-categories" id="budget-categories">
+            <!-- لكل فئة: المبلغ المخصص، المصروف الحالي، المتبقي -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- شاشة: الدخل / المصروف -->
+    <section id="transactions-screen" class="screen hidden">
+      <div class="screen-header">
+        <h2 class="screen-title">إضافة دخل / مصروف</h2>
+      </div>
+
+      <div class="two-col-actions">
+        <button id="add-income-btn" class="big-action-btn success-btn glow-pulse">
+          <span class="icon icon-plus"></span>
+          <span>إضافة دخل</span>
+        </button>
+
+        <button id="add-expense-btn" class="big-action-btn danger-btn glow-pulse">
+          <span class="icon icon-minus"></span>
+          <span>إضافة مصروف</span>
+        </button>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">آخر الحركات</div>
+        </div>
+        <div id="transactions-list" class="list-area">
+          <!-- يسحب آخر المدخلات من الشيت -->
+        </div>
+      </div>
+    </section>
+
+    <!-- شاشة: الفواتير -->
+    <section id="bills-screen" class="screen hidden">
+      <div class="screen-header">
+        <h2 class="screen-title">الفواتير الشهرية</h2>
+      </div>
+
+      <button id="add-bill-btn" class="btn primary-btn">
+        <span class="icon icon-bill"></span>
+        <span>إضافة فاتورة</span>
+      </button>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">قائمة الفواتير</div>
+        </div>
+        <div id="bills-list" class="list-area">
+          <!-- اسم، مبلغ، تاريخ استحقاق، حالة الدفع -->
+        </div>
+      </div>
+    </section>
+
+    <!-- شاشة: الأهداف والميزانية السنوية -->
+    <section id="goals-screen" class="screen hidden">
+      <div class="screen-header">
+        <h2 class="screen-title">أهدافك & الميزانية السنوية</h2>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">إضافة هدف مالي</div>
+        </div>
+        <div class="card-body">
+          <button id="add-goal-btn" class="btn primary-btn">
+            <span class="icon icon-goal"></span>
+            <span>إضافة هدف</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">
+            الميزانية السنوية (يتم توزيعها شهرياً تلقائياً)
+          </div>
+        </div>
+        <div class="card-body">
+          <button id="add-yearly-item-btn" class="btn neutral-btn">
+            <span class="icon icon-calendar"></span>
+            <span>إضافة بند سنوي</span>
+          </button>
+        </div>
+        <div id="yearly-budget-list" class="list-area">
+          <!-- قائمة العناصر السنوية وتكلفتها الشهرية المحسوبة -->
+        </div>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">اقتراح 50 / 30 / 20</div>
+        </div>
+        <div class="card-body">
+          <div class="tip-text">
+            اقتراح تقسيم الدخل إلى ضرورات / كماليات / ادخار.
+          </div>
+          <button id="calc-532-btn" class="btn success-btn">
+            احسب وورّيني الأرقام بالشيكل
+          </button>
+          <button id="apply-532-btn" class="btn danger-btn">
+            طبّق هذا التقسيم
+          </button>
+          <div id="calc-532-result" class="calc-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- شاشة: المشتريات (المستخدمة لحساب الزوجة + أظهرها عندي) -->
+    <section id="shopping-screen" class="screen hidden">
+      <div class="screen-header">
+        <h2 class="screen-title">قائمة المشتريات</h2>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">أضف عنصر جديد</div>
+        </div>
+        <div class="card-body inline-form">
+          <input
+            id="shopping-item-input"
+            class="text-input"
+            type="text"
+            placeholder="اسم العنصر المطلوب"
+          />
+          <button id="shopping-add-btn" class="btn primary-btn">
+            <span class="icon icon-cart"></span>
+            <span>إضافة</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">قائمة الطلبات الحالية</div>
+        </div>
+        <div id="shopping-list" class="list-area">
+          <!-- عناصر الزوجة -->
+          <!-- في حسابي أنا، لكل عنصر أقدر أحط سعر الشراء، وأضغط "تم الشراء" -->
+        </div>
+      </div>
+    </section>
+
+    <!-- شاشة: الإعدادات / البريفرنس -->
+    <section id="preferences-screen" class="screen hidden">
+      <div class="screen-header">
+        <h2 class="screen-title">الإعدادات</h2>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">الثيم والمظهر</div>
+        </div>
+        <div class="card-body">
+          <label class="block-label">الثيم الحالي</label>
+          <select id="theme-select" class="text-input">
+            <option value="ocean">ocean</option>
+            <option value="glow">glow</option>
+            <option value="mint">mint</option>
+            <option value="rose">rose</option>
+            <option value="down">down</option>
+            <option value="upper">upper</option>
+            <option value="dark-mood">dark mood</option>
+            <option value="light-blue">light blue</option>
+            <option value="dark-blue">dark blue</option>
+            <option value="tirkwaz">tirkwaz</option>
+            <option value="gradient">gradient</option>
+          </select>
+
+          <label class="block-label">سرعة الحركة (Transition Speed)</label>
+          <input
+            id="pref-transition-speed"
+            class="text-input"
+            type="range"
+            min="0"
+            max="100"
+            value="50"
+          />
+
+          <label class="block-label">نوع الحركة (Transition Type)</label>
+          <select id="pref-transition-type" class="text-input">
+            <option value="fade">Fade</option>
+            <option value="slide">Slide</option>
+            <option value="glow">Glow</option>
+            <option value="scale">Scale</option>
+          </select>
+
+          <label class="block-label">تأكيد الحذف</label>
+          <select id="pref-delete-confirm" class="text-input">
+            <option value="on">مفعل (اسألني قبل الحذف)</option>
+            <option value="off">غير مفعل (احذف فوراً)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card elevate">
+        <div class="card-header-row">
+          <div class="card-title">معلومات تقنية</div>
+        </div>
+        <div class="card-body tiny-note">
+          <div>التطبيق يعمل عبر Google Sheets و Google Apps Script.</div>
+          <div>لا يوجد تخزين محلي دائم للبيانات المالية.</div>
+          <div>إذا انقطع الإنترنت، يتوقف التطبيق مؤقتاً.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- مودال إضافة دخل -->
+  <div id="modal-income" class="modal hidden">
+    <div class="modal-box card elevate pop-in">
+      <div class="modal-head">
+        <div class="modal-title">إضافة دخل</div>
+        <button class="modal-close-btn icon-btn" data-close="modal-income">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="block-label">مصدر الدخل</label>
+        <input id="income-source" class="text-input" placeholder="راتب، عمل حر، هدية..." />
+
+        <label class="block-label">الفئة</label>
+        <input id="income-category" class="text-input" placeholder="أكتب فئة أو أكثر بفواصل" />
+
+        <label class="block-label">المبلغ (شيكل)</label>
+        <input id="income-amount" class="text-input" type="number" min="0" />
+
+        <label class="block-label">ملاحظة (اختياري)</label>
+        <input id="income-note" class="text-input" placeholder="ملاحظة قصيرة" />
+      </div>
+      <div class="modal-foot">
+        <button id="save-income" class="btn success-btn">حفظ الدخل</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال إضافة مصروف -->
+  <div id="modal-expense" class="modal hidden">
+    <div class="modal-box card elevate pop-in">
+      <div class="modal-head">
+        <div class="modal-title">إضافة مصروف</div>
+        <button class="modal-close-btn icon-btn" data-close="modal-expense">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="block-label">الفئة</label>
+        <input id="expense-category" class="text-input" placeholder="أكل، بنزين... أو أكثر بفواصل" />
+
+        <label class="block-label">المبلغ (شيكل)</label>
+        <input id="expense-amount" class="text-input" type="number" min="0" />
+
+        <label class="block-label">ملاحظة (اختياري)</label>
+        <input id="expense-note" class="text-input" placeholder="مثال: غداء مطعم" />
+      </div>
+      <div class="modal-foot">
+        <button id="save-expense" class="btn danger-btn">حفظ المصروف</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال إضافة فاتورة -->
+  <div id="modal-bill" class="modal hidden">
+    <div class="modal-box card elevate pop-in">
+      <div class="modal-head">
+        <div class="modal-title">فاتورة جديدة</div>
+        <button class="modal-close-btn icon-btn" data-close="modal-bill">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="block-label">اسم الفاتورة</label>
+        <input id="bill-name" class="text-input" placeholder="كهرباء، إنترنت..." />
+
+        <label class="block-label">المبلغ (شيكل)</label>
+        <input id="bill-amount" class="text-input" type="number" min="0" />
+
+        <label class="block-label">تاريخ الاستحقاق</label>
+        <input id="bill-due" class="text-input" type="date" />
+
+        <label class="block-label">حالة الدفع</label>
+        <select id="bill-status" class="text-input">
+          <option value="unpaid">غير مدفوعة</option>
+          <option value="paid">مدفوعة</option>
+        </select>
+      </div>
+      <div class="modal-foot">
+        <button id="save-bill" class="btn primary-btn">حفظ الفاتورة</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال هدف جديد -->
+  <div id="modal-goal" class="modal hidden">
+    <div class="modal-box card elevate pop-in">
+      <div class="modal-head">
+        <div class="modal-title">هدف مالي جديد</div>
+        <button class="modal-close-btn icon-btn" data-close="modal-goal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="block-label">عنوان الهدف</label>
+        <input id="goal-name" class="text-input" placeholder="مثال: ادخار لابتوب" />
+
+        <label class="block-label">القيمة المطلوبة (شيكل)</label>
+        <input id="goal-target" class="text-input" type="number" min="0" />
+
+        <label class="block-label">ملاحظة (اختياري)</label>
+        <input id="goal-note" class="text-input" placeholder="تفاصيل إضافية" />
+      </div>
+      <div class="modal-foot">
+        <button id="save-goal" class="btn primary-btn">حفظ الهدف</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال بند سنوي -->
+  <div id="modal-yearly" class="modal hidden">
+    <div class="modal-box card elevate pop-in">
+      <div class="modal-head">
+        <div class="modal-title">بند سنوي جديد</div>
+        <button class="modal-close-btn icon-btn" data-close="modal-yearly">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="block-label">اسم البند</label>
+        <input id="yearly-name" class="text-input" placeholder="رسوم مدرسة، أعياد..." />
+
+        <label class="block-label">القيمة السنوية (شيكل)</label>
+        <input id="yearly-amount" class="text-input" type="number" min="0" />
+
+        <div class="tiny-note">
+          سيتم توزيع هذا المبلغ على 12 شهر تلقائياً.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="save-yearly" class="btn primary-btn">حفظ البند السنوي</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- مكتبات خارجية مطلوبة (مثلاً Chart.js للرسوم) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- ملفات السكربت تبعتنا (رح نعرّفها لاحقاً خطوة بخطوة) -->
+  <script src="js/helpers.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/gas-api.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/themes.js"></script>
+  <script src="js/preferences.js"></script>
+  <script src="js/categories.js"></script>
+  <script src="js/transactions.js"></script>
+  <script src="js/bills.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/goals.js"></script>
+  <script src="js/shopping.js"></script>
+  <script src="js/charts.js"></script>
+
+</body>
+</html>
