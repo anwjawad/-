@@ -1,91 +1,96 @@
 /* ============================
-   gas-api.js
-   مسؤول عن التخاطب مع Google Apps Script
-   ============================ */
+   gas-api.js (JSONP VERSION)
+   تجاوز CORS بدون fetch
+   ============================
 
-/*
 الفكرة:
-- كل تواصل مع جوجل شيت بيصير عن طريق GAS web app.
-- احنا بنبعت action محدد و بياناته.
-- GAS بيرجع JSON.
+بدل ما نستخدم fetch() وننحظر من CORS،
+نستخدم JSONP.
 
-المهم:
-AppState.dataConfig.gasBaseUrl لازم يكون موجود في state.js
-مثال متوقع لاحقاً:
-AppState.dataConfig.gasBaseUrl = "https://script.google.com/macros/s/XXXXX/exec";
+يعني:
+- بنعمل كولباك global مؤقت في window.
+- بنبعت اسمه للـGAS كـ callback=<name>.
+- بنضيف <script src="...&callback=<name>"> للدوم.
+- GAS بيرجع استدعاء الدالة مع البيانات.
+- منستلم الرد ونرجعه كبرومايز.
 
-هنا ما في OAuth.
-يعني الـURL رح يكون معروف فقط إلنا.
-
-NOTE:
-بما أنك طلبت "بدون CORS مشاكل" وبتحب أسلوب قريب من JSONP،
-أنا رح أستخدم GET مع query params.
-GAS لازم يرجع JSON عادي ومسموح للمتصفح يقرأه.
+كل الدوال أدناه (fetchTransactions, addTransaction, ...) ما تغيرت من ناحية الاستعمال في باقي الملفات.
+بس بدل ما تستعمل fetchCall، رح تستعمل gasCallJSONP.
 */
 
-async function gasCall(paramsObj = {}) {
-  const base = AppState.dataConfig.gasBaseUrl;
-  if (!base) {
-    console.warn("⚠ لم يتم ضبط gasBaseUrl بعد.");
-    return { ok: false, error: "NO_GAS_URL" };
-  }
-
-  // حوّل الـparams لكويري سترينغ
-  const query = new URLSearchParams(paramsObj).toString();
-  const finalUrl = `${base}?${query}`;
-
-  try {
-    const res = await fetch(finalUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json;charset=utf-8",
-      },
-    });
-
-    if (!res.ok) {
-      console.error("gasCall error status", res.status);
-      return { ok: false, error: "HTTP_" + res.status };
+function gasCallJSONP(paramsObj = {}) {
+  return new Promise((resolve) => {
+    const base = AppState.dataConfig.gasBaseUrl;
+    if (!base) {
+      console.warn("⚠ لم يتم ضبط gasBaseUrl بعد في AppState.dataConfig.gasBaseUrl");
+      resolve({ ok: false, error: "NO_GAS_URL" });
+      return;
     }
 
-    const data = await res.json();
-    return data;
-  } catch (err) {
-    console.error("gasCall fetch error", err);
-    return { ok: false, error: err.message || "FETCH_ERROR" };
-  }
+    // نولّد اسم كولباك فريد
+    const cbName = "__gas_cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e9);
+
+    // نخزن الدالة بالغobal حتى GAS يقدر يناديها
+    window[cbName] = function(data) {
+      // نظف بعد الاستقبال
+      try {
+        delete window[cbName];
+      } catch (e) {
+        window[cbName] = undefined;
+      }
+
+      // شيل السكربت tag من الـDOM
+      if (scriptTag && scriptTag.parentNode) {
+        scriptTag.parentNode.removeChild(scriptTag);
+      }
+
+      // رجّع الرد
+      resolve(data);
+    };
+
+    // جهز الـquery string
+    const queryObj = {
+      ...paramsObj,
+      callback: cbName,
+    };
+
+    const qs = new URLSearchParams(queryObj).toString();
+    const finalUrl = base + "?" + qs;
+
+    // أنشئ <script> ديناميكي
+    const scriptTag = document.createElement("script");
+    scriptTag.src = finalUrl;
+    scriptTag.async = true;
+    scriptTag.onerror = function() {
+      // فشل تحميل السكربت (يعني فشل الطلب)
+      try {
+        delete window[cbName];
+      } catch (e) {
+        window[cbName] = undefined;
+      }
+      if (scriptTag && scriptTag.parentNode) {
+        scriptTag.parentNode.removeChild(scriptTag);
+      }
+      resolve({ ok: false, error: "SCRIPT_LOAD_ERROR" });
+    };
+
+    document.body.appendChild(scriptTag);
+  });
 }
 
 /*
-دوال عالية المستوى:
-
-- fetchTransactions()    => يجيب آخر الحركات (دخل + مصروف)
-- addTransaction(...)    => يضيف دخل أو مصروف
-- deleteTransaction(id)  => يحذف حركة
-- fetchCategories()      => يرجع الفئات المخزنة
-- saveCategories(list)   => يحفظ فئات جديدة/محدثة
-- fetchBills() / addBill() / updateBillStatus()
-- fetchGoals() / addGoal()
-- addYearlyItem()
-... الخ
-
-ملاحظة:
-الـ id لكل حركة رح ننشئه داخل GAS (رح نعالجها بقسم GAS لاحقاً)،
-ونرجع لك هذا الـid عشان تقدر تحذفه لاحقاً.
+دوال عالية المستوى. نفس التواقيع السابقة،
+لكن صارت تستعمل gasCallJSONP بدل fetch/gasCall.
 */
 
-async function fetchTransactions() {
-  return gasCall({
+function fetchTransactions() {
+  return gasCallJSONP({
     action: "getTransactions",
   });
 }
 
-async function addTransaction({ type, categories, amount, note, source }) {
-  // type: "income" or "expense"
-  // categories: array of strings
-  // amount: number
-  // note: string
-  // source: string (مصدر الدخل مثلاً)
-  return gasCall({
+function addTransaction({ type, categories, amount, note, source }) {
+  return gasCallJSONP({
     action: "addTransaction",
     type,
     categories: JSON.stringify(categories || []),
@@ -95,38 +100,36 @@ async function addTransaction({ type, categories, amount, note, source }) {
   });
 }
 
-async function deleteTransaction(id) {
-  return gasCall({
+function deleteTransaction(id) {
+  return gasCallJSONP({
     action: "deleteTransaction",
     id,
   });
 }
 
-async function fetchCategories() {
-  return gasCall({
+function fetchCategories() {
+  return gasCallJSONP({
     action: "getCategories",
   });
 }
 
-async function saveCategories(newList) {
-  return gasCall({
+function saveCategories(newList) {
+  return gasCallJSONP({
     action: "saveCategories",
     categories: JSON.stringify(newList || []),
   });
 }
 
-/*
-الفواتير الشهرية
-*/
+/* الفواتير */
 
-async function fetchBills() {
-  return gasCall({
+function fetchBills() {
+  return gasCallJSONP({
     action: "getBills",
   });
 }
 
-async function addBill({ name, amount, dueDate, status }) {
-  return gasCall({
+function addBill({ name, amount, dueDate, status }) {
+  return gasCallJSONP({
     action: "addBill",
     name,
     amount,
@@ -135,26 +138,24 @@ async function addBill({ name, amount, dueDate, status }) {
   });
 }
 
-async function updateBillStatus({ billId, status }) {
-  return gasCall({
+function updateBillStatus({ billId, status }) {
+  return gasCallJSONP({
     action: "updateBillStatus",
     billId,
     status,
   });
 }
 
-/*
-الأهداف والبنود السنوية
-*/
+/* الأهداف / البنود السنوية */
 
-async function fetchGoalsAndYearly() {
-  return gasCall({
+function fetchGoalsAndYearly() {
+  return gasCallJSONP({
     action: "getGoalsAndYearly",
   });
 }
 
-async function addGoal({ goalName, goalTarget, goalNote }) {
-  return gasCall({
+function addGoal({ goalName, goalTarget, goalNote }) {
+  return gasCallJSONP({
     action: "addGoal",
     goalName,
     goalTarget,
@@ -162,48 +163,35 @@ async function addGoal({ goalName, goalTarget, goalNote }) {
   });
 }
 
-async function addYearlyItem({ yearlyName, yearlyAmount }) {
-  return gasCall({
+function addYearlyItem({ yearlyName, yearlyAmount }) {
+  return gasCallJSONP({
     action: "addYearlyItem",
     yearlyName,
     yearlyAmount,
   });
 }
 
-/*
-قائمة المشتريات (زوجتك)
-*/
+/* قائمة المشتريات */
 
-async function fetchShoppingList() {
-  return gasCall({
+function fetchShoppingList() {
+  return gasCallJSONP({
     action: "getShoppingList",
   });
 }
 
-async function addShoppingItem({ itemName }) {
-  return gasCall({
+function addShoppingItem({ itemName }) {
+  return gasCallJSONP({
     action: "addShoppingItem",
     itemName,
   });
 }
 
-async function markShoppingItemPurchased({ itemId, price }) {
-  // هذي العملية عندك: لما تشتري الغرض
-  // 1) يسجل السعر
-  // 2) ينقله لمصاريف
-  // 3) يشيله من قائمة الشراء
-  return gasCall({
+function markShoppingItemPurchased({ itemId, price }) {
+  return gasCallJSONP({
     action: "markShoppingPurchased",
     itemId,
     price,
   });
 }
 
-/*
-تنبيه الفاتورة "ذكّرني غداً":
-راح نترك تنفيذه الحقيقي داخل notifications.js
-المهم إنه notifications.js يقدر يستدعي
-Notification API تبع المتصفح
-*/
-
-console.log("gas-api.js جاهز ✅");
+console.log("gas-api.js (JSONP version) جاهز ✅");
