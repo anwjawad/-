@@ -1,231 +1,293 @@
 /* ============================
    goals.js
-   الأهداف و الميزانية السنوية
+   الأهداف والميزانية السنوية
    ============================ */
 
-/*
-المهام:
-1. حفظ الأهداف المالية (اسم الهدف + القيمة المطلوبة + ملاحظة).
-2. حفظ البنود السنوية (اسم بند + القيمة السنوية).
-3. حساب تكلفة كل بند سنوي بالشهر (تقسيم على 12).
-4. عرض النتائج في شاشة الأهداف/الميزانية.
-5. حساب نموذج 50/30/20 وتحويله لأرقام شيكل وعرضه.
-6. زر "طبّق هذا التقسيم": حالياً فقط يعرض للمستخدم أنه تم التطبيق (إرشادي).
-*/
+/* ========= Utilities ========= */
+
+function normalizeGoal(row) {
+  return {
+    id: (row?.id ?? "").toString(),
+    goalName: (row?.goalName ?? "").toString().trim(),
+    goalTarget: Number(row?.goalTarget ?? 0),
+    goalNote: (row?.goalNote ?? "").toString().trim(),
+  };
+}
+
+function normalizeYearly(row) {
+  return {
+    id: (row?.id ?? "").toString(),
+    yearlyName: (row?.yearlyName ?? "").toString().trim(),
+    yearlyAmount: Number(row?.yearlyAmount ?? 0),
+  };
+}
+
+function fmtMoney(n) {
+  const v = Number(n || 0);
+  return v.toFixed(2);
+}
+
+/* ========= State ========= */
 
 const GoalsState = {
-  goals: [], // [{id, goalName, goalTarget, goalNote}]
-  yearlyItems: [], // [{id, yearlyName, yearlyAmount, monthlySplit}]
+  goals: [],
+  yearly: [],
+  els: {
+    goalsList: null,
+    yearlyList: null,
+    yearlyMonthlyCost: null,
+
+    // goal inputs
+    goalNameInput: null,
+    goalTargetInput: null,
+    goalNoteInput: null,
+    saveGoalBtn: null,
+
+    // yearly inputs
+    yearlyNameInput: null,
+    yearlyAmountInput: null,
+    saveYearlyBtn: null,
+
+    // 50/30/20
+    calc532Btn: null,
+    apply532Btn: null,
+    calc532Result: null,
+  },
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  const addGoalBtn = document.getElementById("add-goal-btn");
-  const addYearlyBtn = document.getElementById("add-yearly-item-btn");
+/* ========= Renderers ========= */
 
-  const saveGoalBtn = document.getElementById("save-goal");
-  const saveYearlyBtn = document.getElementById("save-yearly");
+function renderGoalsList() {
+  const el = GoalsState.els.goalsList;
+  if (!el) return;
 
-  const goalNameInput   = document.getElementById("goal-name");
-  const goalTargetInput = document.getElementById("goal-target");
-  const goalNoteInput   = document.getElementById("goal-note");
-  const modalGoal       = document.getElementById("modal-goal");
+  el.innerHTML = "";
 
-  const yearlyNameInput   = document.getElementById("yearly-name");
-  const yearlyAmountInput = document.getElementById("yearly-amount");
-  const modalYearly       = document.getElementById("modal-yearly");
-
-  const yearlyListEl  = document.getElementById("yearly-budget-list");
-  const calcBtn532    = document.getElementById("calc-532-btn");
-  const applyBtn532   = document.getElementById("apply-532-btn");
-  const calcResultBox = document.getElementById("calc-532-result");
-
-  // تحميل أولي للبيانات
-  refreshGoalsAndYearlyUI();
-
-  // حفظ هدف جديد
-  if (saveGoalBtn) {
-    saveGoalBtn.addEventListener("click", async () => {
-      const gName = (goalNameInput.value || "").trim();
-      const gTarget = Number(goalTargetInput.value || 0);
-      const gNote = (goalNoteInput.value || "").trim();
-
-      if (!gName || !gTarget) {
-        alert("يرجى إدخال اسم الهدف و قيمته المطلوبة.");
-        return;
-      }
-
-      const res = await addGoal({
-        goalName: gName,
-        goalTarget: gTarget,
-        goalNote: gNote,
-      });
-
-      if (!res || !res.ok) {
-        alert("فشل حفظ الهدف");
-        return;
-      }
-
-      goalNameInput.value = "";
-      goalTargetInput.value = "";
-      goalNoteInput.value = "";
-
-      if (modalGoal) modalGoal.classList.add("hidden");
-
-      refreshGoalsAndYearlyUI();
-    });
+  if (!GoalsState.goals.length) {
+    const empty = document.createElement("div");
+    empty.className = "tiny-note";
+    empty.textContent = "لا توجد أهداف بعد.";
+    el.appendChild(empty);
+    return;
   }
 
-  // حفظ بند سنوي
-  if (saveYearlyBtn) {
-    saveYearlyBtn.addEventListener("click", async () => {
-      const yName = (yearlyNameInput.value || "").trim();
-      const yAmount = Number(yearlyAmountInput.value || 0);
+  GoalsState.goals.forEach(g => {
+    const row = document.createElement("div");
+    row.className = "list-row";
 
-      if (!yName || !yAmount) {
-        alert("يرجى إدخال اسم البند وقيمته السنوية.");
-        return;
-      }
+    const title = document.createElement("div");
+    title.className = "list-row-main";
+    title.textContent = g.goalName || "(هدف بدون اسم)";
 
-      const res = await addYearlyItem({
-        yearlyName: yName,
-        yearlyAmount: yAmount,
-      });
+    const sub = document.createElement("div");
+    sub.className = "list-row-sub";
+    const target = document.createElement("div");
+    target.textContent = "القيمة المستهدفة: " + fmtMoney(g.goalTarget) + " شيكل";
+    sub.appendChild(target);
 
-      if (!res || !res.ok) {
-        alert("فشل حفظ البند السنوي");
-        return;
-      }
-
-      yearlyNameInput.value = "";
-      yearlyAmountInput.value = "";
-
-      if (modalYearly) modalYearly.classList.add("hidden");
-
-      refreshGoalsAndYearlyUI();
-    });
-  }
-
-  // حساب 50/30/20
-  if (calcBtn532) {
-    calcBtn532.addEventListener("click", () => {
-      // من وين نجيب إجمالي الدخل الشهري الحالي؟ 
-      // في هالنسخة، رح نعمل call بسيط للحركات ونحسب دخل الشهر الحالي.
-      calc532ForCurrentIncome(calcResultBox);
-    });
-  }
-
-  // تطبيق 50/30/20 (شكلي/إرشادي)
-  if (applyBtn532) {
-    applyBtn532.addEventListener("click", () => {
-      alert("تم تطبيق التوزيع الإرشادي 50/30/20 (لأغراض عرض الميزانية).");
-    });
-  }
-
-  // تحميل البيانات من GAS وإعادة الرسم
-  async function refreshGoalsAndYearlyUI() {
-    const res = await fetchGoalsAndYearly();
-    if (!res || !res.ok) {
-      GoalsState.goals = [];
-      GoalsState.yearlyItems = [];
-    } else {
-      GoalsState.goals = Array.isArray(res.goals) ? res.goals : [];
-      GoalsState.yearlyItems = Array.isArray(res.yearlyItems)
-        ? res.yearlyItems.map(item => {
-            const yearlyAmountNum = Number(item.yearlyAmount || 0);
-            return {
-              ...item,
-              yearlyAmount: yearlyAmountNum,
-              monthlySplit: (yearlyAmountNum / 12).toFixed(2),
-            };
-          })
-        : [];
+    if (g.goalNote) {
+      const note = document.createElement("div");
+      note.textContent = "ملاحظة: " + g.goalNote;
+      sub.appendChild(note);
     }
 
-    renderYearlyItemsList();
-  }
+    row.appendChild(title);
+    row.appendChild(sub);
+    el.appendChild(row);
+  });
+}
 
-  // عرض البنود السنوية
-  function renderYearlyItemsList() {
-    if (!yearlyListEl) return;
-    yearlyListEl.innerHTML = "";
+function renderYearlyList() {
+  const listEl = GoalsState.els.yearlyList;
+  const costEl = GoalsState.els.yearlyMonthlyCost;
 
-    if (!GoalsState.yearlyItems.length) {
+  if (listEl) {
+    listEl.innerHTML = "";
+    if (!GoalsState.yearly.length) {
       const empty = document.createElement("div");
       empty.className = "tiny-note";
       empty.textContent = "لا توجد بنود سنوية بعد.";
-      yearlyListEl.appendChild(empty);
-      return;
+      listEl.appendChild(empty);
+    } else {
+      GoalsState.yearly.forEach(y => {
+        const row = document.createElement("div");
+        row.className = "list-row";
+
+        const title = document.createElement("div");
+        title.className = "list-row-main";
+        title.textContent = y.yearlyName || "(بند سنوي)";
+
+        const sub = document.createElement("div");
+        sub.className = "list-row-sub";
+        const amt = document.createElement("div");
+        amt.textContent = "المبلغ السنوي: " + fmtMoney(y.yearlyAmount) + " شيكل";
+        sub.appendChild(amt);
+
+        row.appendChild(title);
+        row.appendChild(sub);
+        listEl.appendChild(row);
+      });
     }
+  }
 
-    GoalsState.yearlyItems.forEach(item => {
-      /*
-      item: {
-        id, yearlyName, yearlyAmount, monthlySplit
+  // تكلفة شهرية = مجموع السنوي / 12
+  if (costEl) {
+    const sumYearly = GoalsState.yearly.reduce((acc, y) => acc + Number(y.yearlyAmount || 0), 0);
+    const perMonth = sumYearly / 12;
+    costEl.textContent = "تكلفة شهرية " + fmtMoney(perMonth) + " شيكل";
+  }
+}
+
+/* ========= Main refresh ========= */
+
+async function refreshGoalsAndYearlyUI() {
+  // fetchGoalsAndYearly() موجودة في gas-api.js (نسخة JSONP)
+  const res = await fetchGoalsAndYearly();
+
+  const rawGoals = Array.isArray(res?.goals) ? res.goals : [];
+  // GAS يرجع yearlyItems؛ ندعم أيضًا اسم 'yearly' لو نسخة قديمة من الواجهة
+  const rawYearly = Array.isArray(res?.yearlyItems)
+    ? res.yearlyItems
+    : (Array.isArray(res?.yearly) ? res.yearly : []);
+
+  GoalsState.goals = rawGoals.map(normalizeGoal);
+  GoalsState.yearly = rawYearly.map(normalizeYearly);
+
+  renderGoalsList();
+  renderYearlyList();
+}
+
+/* ========= 50/30/20 ========= */
+
+async function calc532Into(resultBoxEl) {
+  if (!resultBoxEl) return;
+  // نحسب من دخل هذا الشهر عبر Transactions
+  const r = await fetchTransactions();
+  const arr = (r && r.ok && Array.isArray(r.transactions)) ? r.transactions : [];
+
+  // الشهر الحالي
+  const now = new Date();
+  const ym = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2, "0");
+
+  const incomesThisMonth = arr.filter(tx => {
+    if (tx.type !== "income") return false;
+    const ts = tx.timestamp || tx.time || tx.ts;
+    if (!ts) return false;
+    const date = new Date(ts);
+    if (isNaN(date.getTime())) return false;
+    return (date.getFullYear() === now.getFullYear() &&
+            date.getMonth() === now.getMonth());
+  });
+
+  const totalIncome = incomesThisMonth.reduce((acc, tx) => acc + Number(tx.amount || 0), 0);
+
+  const needs  = totalIncome * 0.5;
+  const wants  = totalIncome * 0.3;
+  const save   = totalIncome * 0.2;
+
+  resultBoxEl.innerHTML =
+    "إجمالي الدخل لهذا الشهر: " + fmtMoney(totalIncome) + " شيكل<br>" +
+    "الضروريات (50%): " + fmtMoney(needs) + " شيكل<br>" +
+    "الكماليات (30%): " + fmtMoney(wants) + " شيكل<br>" +
+    "الادخار (20%): " + fmtMoney(save) + " شيكل";
+}
+
+/* ========= Boot ========= */
+
+document.addEventListener("DOMContentLoaded", () => {
+  // عناصر DOM (عدّل IDs هنا إذا كانت مختلفة عندك)
+  GoalsState.els.goalsList         = document.getElementById("goals-list");
+  GoalsState.els.yearlyList        = document.getElementById("yearly-list");
+  GoalsState.els.yearlyMonthlyCost = document.getElementById("yearly-monthly-cost");
+
+  GoalsState.els.goalNameInput   = document.getElementById("goal-name");
+  GoalsState.els.goalTargetInput = document.getElementById("goal-target");
+  GoalsState.els.goalNoteInput   = document.getElementById("goal-note");
+  GoalsState.els.saveGoalBtn     = document.getElementById("save-goal");
+
+  GoalsState.els.yearlyNameInput   = document.getElementById("yearly-name");
+  GoalsState.els.yearlyAmountInput = document.getElementById("yearly-amount");
+  GoalsState.els.saveYearlyBtn     = document.getElementById("save-yearly");
+
+  GoalsState.els.calc532Btn    = document.getElementById("calc-532-btn");
+  GoalsState.els.apply532Btn   = document.getElementById("apply-532-btn");
+  GoalsState.els.calc532Result = document.getElementById("calc-532-result");
+
+  // تحميل أولي
+  refreshGoalsAndYearlyUI();
+
+  /* حفظ هدف جديد */
+  if (GoalsState.els.saveGoalBtn) {
+    GoalsState.els.saveGoalBtn.addEventListener("click", async () => {
+      const gName   = (GoalsState.els.goalNameInput?.value || "").trim();
+      const gTarget = Number(GoalsState.els.goalTargetInput?.value || 0);
+      const gNote   = (GoalsState.els.goalNoteInput?.value || "").trim();
+
+      if (!gName || !gTarget || gTarget <= 0) {
+        alert("فضلاً أدخل اسم هدف وقيمة صحيحة");
+        return;
       }
-      */
-      const row = document.createElement("div");
-      row.className = "list-row";
 
-      const header = document.createElement("div");
-      header.className = "list-row-header";
+      const res = await addGoal({ goalName: gName, goalTarget: gTarget, goalNote: gNote });
+      if (!res || !res.ok) {
+        alert("حصل خطأ في حفظ الهدف");
+        return;
+      }
 
-      const leftSide = document.createElement("div");
-      leftSide.textContent = `${item.yearlyName} - ${item.yearlyAmount} شيكل/سنة`;
+      // تحديث فوري للمشهد
+      GoalsState.goals.unshift(normalizeGoal({ id: res.id, goalName: gName, goalTarget: gTarget, goalNote: gNote }));
+      renderGoalsList();
 
-      const rightSide = document.createElement("div");
-      rightSide.textContent = `تكلفة شهرية: ${item.monthlySplit} شيكل`;
+      // إعادة جلب للتأكد من التزامن
+      refreshGoalsAndYearlyUI();
 
-      header.appendChild(leftSide);
-      header.appendChild(rightSide);
-
-      row.appendChild(header);
-      yearlyListEl.appendChild(row);
+      // تفريغ الحقول
+      if (GoalsState.els.goalNameInput) GoalsState.els.goalNameInput.value = "";
+      if (GoalsState.els.goalTargetInput) GoalsState.els.goalTargetInput.value = "";
+      if (GoalsState.els.goalNoteInput) GoalsState.els.goalNoteInput.value = "";
     });
   }
 
-  /*
-   حساب توزيع 50/30/20:
-   - نجيب إجمالي الدخل من هذا الشهر (TransactionsState أو من GAS).
-   - نعرض:
-     50% احتياجات
-     30% كماليات
-     20% ادخار
-  */
-  async function calc532ForCurrentIncome(resultBoxEl) {
-    if (!resultBoxEl) return;
+  /* إضافة بند سنوي */
+  if (GoalsState.els.saveYearlyBtn) {
+    GoalsState.els.saveYearlyBtn.addEventListener("click", async () => {
+      const yName   = (GoalsState.els.yearlyNameInput?.value || "").trim();
+      const yAmount = Number(GoalsState.els.yearlyAmountInput?.value || 0);
 
-    // نجيب آخر الحركات من GAS
-    const res = await fetchTransactions();
-    if (!res || !res.ok || !Array.isArray(res.transactions)) {
-      resultBoxEl.textContent = "لا يمكن حساب الآن.";
-      return;
-    }
-
-    // احسب إجمالي الدخل للشهر الحالي فقط
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth(); // 0..11
-
-    let totalIncomeThisMonth = 0;
-
-    res.transactions.forEach(tx => {
-      if (tx.type !== "income") return;
-      if (!tx.timestamp) return;
-      const d = new Date(tx.timestamp);
-      if (d.getFullYear() === y && d.getMonth() === m) {
-        totalIncomeThisMonth += Number(tx.amount || 0);
+      if (!yName || !yAmount || yAmount <= 0) {
+        alert("فضلاً أدخل اسم بند سنوي وقيمة صحيحة");
+        return;
       }
+
+      const res = await addYearlyItem({ yearlyName: yName, yearlyAmount: yAmount });
+      if (!res || !res.ok) {
+        alert("حصل خطأ في حفظ البند السنوي");
+        return;
+      }
+
+      // تحديث فوري للمشهد
+      GoalsState.yearly.unshift(normalizeYearly({ id: res.id, yearlyName: yName, yearlyAmount: yAmount }));
+      renderYearlyList();
+
+      // إعادة جلب للتأكد من التزامن
+      refreshGoalsAndYearlyUI();
+
+      // تفريغ الحقول
+      if (GoalsState.els.yearlyNameInput) GoalsState.els.yearlyNameInput.value = "";
+      if (GoalsState.els.yearlyAmountInput) GoalsState.els.yearlyAmountInput.value = "";
     });
+  }
 
-    const needs  = totalIncomeThisMonth * 0.5;
-    const wants  = totalIncomeThisMonth * 0.3;
-    const save   = totalIncomeThisMonth * 0.2;
-
-    resultBoxEl.innerHTML =
-      "إجمالي الدخل لهذا الشهر: " + totalIncomeThisMonth.toFixed(2) + " شيكل<br>" +
-      "الضروريات (50%): " + needs.toFixed(2) + " شيكل<br>" +
-      "الكماليات (30%): " + wants.toFixed(2) + " شيكل<br>" +
-      "الادخار (20%): " + save.toFixed(2) + " شيكل";
+  /* 50/30/20 */
+  if (GoalsState.els.calc532Btn && GoalsState.els.calc532Result) {
+    GoalsState.els.calc532Btn.addEventListener("click", () => {
+      calc532Into(GoalsState.els.calc532Result);
+    });
+  }
+  if (GoalsState.els.apply532Btn) {
+    GoalsState.els.apply532Btn.addEventListener("click", () => {
+      alert("تم تطبيق التقسيم (إرشادي).");
+    });
   }
 });
 
