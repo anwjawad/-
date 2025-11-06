@@ -3,6 +3,24 @@
    إدارة الدخل والمصروف
    ============================ */
 
+
+
+function normalizeCategories(input) {
+  if (Array.isArray(input)) {
+    return input
+      .map(x => (x == null ? "" : String(x).trim()))
+      .filter(Boolean);
+  }
+  if (typeof input === "string") {
+    return input
+      .split(/[,،]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }
+  if (input == null) return [];
+  return [String(input).trim()].filter(Boolean);
+}
+
 /*
 هذا الملف يمسك:
 1. قراءة آخر الحركات من الشيت وعرضها في شاشة "آخر الحركات".
@@ -135,7 +153,10 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("فشل تحميل الحركات");
       TransactionsState.list = [];
     } else {
-      TransactionsState.list = res.transactions;
+      TransactionsState.list = res.transactions.map(tx => ({
+      ...tx,
+      categories: normalizeCategories(tx.categories),
+    }));
     }
 
     renderTransactionsList();
@@ -198,7 +219,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // الفئات
       const catDiv = document.createElement("div");
-      catDiv.textContent = "فئات: " + (tx.categories || []).join(", ");
+      const cats = normalizeCategories(tx.categories);
+      catDiv.textContent = "فئات: " + (cats.length ? cats.join(", ") : "—");
       sub.appendChild(catDiv);
 
       // المصدر (للدخل)
